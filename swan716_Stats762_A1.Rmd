@@ -1,0 +1,204 @@
+---
+title: "Stats 762 Assignment 1"
+author: 'Stephen Wang, ID: 173417367'
+date: 'Due: 18 March 2021'
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Downloads/Stats 762")
+library(MASS)
+```
+
+## Question 1
+
+```{r}
+sludge.df<-read.table("sludge.data",header=T)
+sludge.df[,1:3]<-lapply(sludge.df[,1:3], as.factor)
+sludge.df$fouled<-factor(sludge.df$fouled)
+```
+## Question 2
+
+```{r}
+mosaicplot(~SVI+fouled, data=sludge.df,
+           main="SVI Mosaic Plot",
+           ylab="Fouled",
+           xlab="SVI",
+           color=c("salmon1","skyblue1"),
+           border=FALSE)
+mosaicplot(~sludgefd+fouled, data=sludge.df,
+           main="Sludge Mosaic Plot",
+           ylab="Fouled",
+           xlab="Sludge",
+           color=c("salmon1","skyblue1"),
+           border=FALSE)
+mosaicplot(~claydose+fouled, data=sludge.df,
+           main="Claydose Mosaic Plot",
+           ylab="Fouled",
+           xlab="Claydose",
+           color=c("salmon1","skyblue1"),
+           border=FALSE)
+```
+
+- The proportion of fouling is similar for sludge volume indexes <60ml/g and >60ml/g.  
+- The addition of flotation sludge reduces the proportion of fouling compared to no addition of floating sludge. However, the addition of polyaluminumchloride greatly reduces the proportion of fouling compared to no addition of flotation sludge and compared to addition of flotation sludge.  - As the level of clay dosing increases from low to medium to high, the proportion of fouling increases respectively. 
+
+## Question 3
+
+```{r}
+sludge.table<-with(sludge.df, table(claydose,fouled)[,2:1])
+sludge.table
+
+probability_high_clay<-sludge.table[3,'Y']/(sludge.table[3,'Y']+sludge.table[3,'N'])
+probability_high_clay
+
+odds_high_clay<-probability_high_clay/(sludge.table[3,'N']/(sludge.table[3,'Y']+sludge.table[3,'N']))
+odds_high_clay
+
+odds_low_clay<-(sludge.table[1,'Y']/(sludge.table[1,'Y']+sludge.table[1,'N']))/(sludge.table[1,'N']/(sludge.table[1,'Y']+sludge.table[1,'N']))
+odds_ratio_low_high<-odds_high_clay/odds_low_clay
+odds_ratio_low_high
+```
+
+## Question 4
+
+```{r}
+## Probability of fouling~claydose.
+sludge1.glm<-glm(fouled~claydose, data=sludge.df, family="binomial")
+summary(sludge1.glm)
+```
+
+(a) We could either use the inverse link function formula or the predict function to obtain the probability of fouling.
+
+```{r}
+## Inverse link function formula:
+exp(-3.1625+2.8656)/(1+exp(-3.1625+2.8656))
+
+## Predict:
+predict(sludge1.glm, data.frame(claydose="3"), type="response", se.fit=TRUE)
+```
+
+(b/c) We use the following to obtain the odd ratios. 
+
+```{r}
+exp(cbind(coef(sludge1.glm), confint(sludge1.glm)))
+```
+
+Since 1 is the base category for claydose level, we can look at the intercept to obtain the odds of fouling when level of dosing is low (0.0423)
+
+And derive the odds of fouling when level of claydose is high compared to the odds of fouling when the level of claydose is low (17.55) by looking at claydose3 intercept. 
+
+## Question 5
+
+```{r}
+sludge2.glm<-glm(fouled~SVI, data=sludge.df, family="binomial")
+summary(sludge2.glm)
+
+sludge3.glm<-glm(fouled~SVI+sludgefd+claydose, data=sludge.df, family="binomial")
+summary(sludge3.glm)
+
+```
+
+When we fit the GLM to explain fouling with only one explanatory variable SVI, there is weak statistical significance (p-value=0.13) for when SVI >60ml/g. This suggests that the level of SVI doesn't have any significant influence on fouling which we observed from the mosaic plots. 
+
+However, once we add the other explanatory variables into the model, SVI becomes statistically significant (p-value<0.05) which indicates a correlation between SVI and the newly added regressors. Therefore, only when we take into account the other explanatory variables, will SVI be relevant in predicting fouling. 
+
+## Question 6
+
+```{r}
+afghan.df = read.table("afghan.data", row.names=1, header=T)
+afghan.df$pashtun<-factor(afghan.df$pashtun)
+plot(afghan.df)
+boxplot(afghan.df$incidents,
+        main="Number of Incidents")
+afghan.df[afghan.df$incidents>140,]
+
+```
+
+Although there are three events (Helmand, Kabul and Kandahar) where there is seemingly higher incident count, we assume these are valid observations (due to unlikeliness of miscounting terror incidents) and don't have reason to remove these points. From the pairs plot, we can briefly observe the following:
+- The majority of incidents are within the 0-60 count range. 
+- There is a higher number of incidents when observing regions with Pushtun majority. 
+- There are loose clusters when observing number of incidents to population and number of incidents to calories. 
+- There doesn't seem to be any distinguishable relationship between number of incidents and troops. 
+
+## Question 7
+
+```{r}
+model1<-glm(incidents~calories+pashtun+troops+offset(log(pop/1000)), family=poisson, data=afghan.df)
+summary(model1)
+```
+
+## Question 8
+
+```{r}
+model2<-glm(incidents~pashtun+troops+calories+offset(log(pop/1000)), family=quasipoisson, data=afghan.df)
+summary(model2)
+```
+
+There's weak statistical significance for two of the explanatory variables, calories and troops, so we can re-fit the model. 
+
+```{r}
+
+model2refitted.glm<-glm(incidents~pashtun+offset(log(pop/1000)), family=quasipoisson, data=afghan.df)
+summary(model2refitted.glm)
+anova(model2refitted.glm, test="Chisq")
+
+```
+
+By looking at the summary, we can check the dispersion parameter. The dispersion parameter for both Quasipoisson models is estimated to be >38 which indicates how much larger the variance is than the mean. Since this dispersion parameter is significantly larger than 1, the Poisson distribution has serious overdispersion. 
+
+## Question 9
+
+```{r}
+model3<-glm.nb(incidents~calories+pashtun+troops+offset(log(pop/1000)), data=afghan.df)
+summary(model3)
+```
+
+The fitted model suggests weak statistical significance (p-value=0.4145) for troops to explain number of incidents so we will fit a new model without troops. 
+
+```{r}
+model4<-glm.nb(incidents~calories+pashtun+offset(log(pop/1000)), data=afghan.df)
+summary(model4)
+anova(model4, test="Chisq")
+
+## Estimated coefficients
+coef(model1)
+coef(model4)
+
+## Estimated standard errors
+sqrt(diag(vcov(model1)))
+sqrt(diag(vcov(model4)))
+
+```
+
+When we compare the Poisson distribution to the Negative Binomial distribution, we can see that the coefficient values of the regressors in the Negative Binomial model have deflated. On the other hand, we've had an inverse effect with the standard error of the coefficients where the Negative Binomial distribution have inflated the standard errors compared to the Poisson distribution. 
+
+## Question 10
+
+The number of terror incidents in provinces that have Pushtun ethnic majority are likely to have 1.8 more incidents per 1000 population compared to provinces without Pushtun ethnic majority. 
+
+## Question 11
+
+```{r}
+farah=data.frame(pop=493,calories=17,pashtun="1",troops=1000)
+predict(model4, farah, type="response")
+
+## Obtain theta from the model summary 
+theta<-1.573
+
+## Calculate variance
+nb_mean<-predict(model4, farah, type="response")
+nb_variance<-nb_mean+(nb_mean^2/theta)
+
+
+```
+
+We obtain the theta value of 1.573 from the Negative Binomial model summary. For the Poisson distribution, the variance is assumed to be equal to the mean therefore, if the Poisson distribution has the same expected value of 47.7, then the variance is also expected to be 47.7.
+
+On the other hand, the Negative Binomial distribution has one more parameter to adjust the variance independently from the mean and therefore has a variance greater than the mean. From our calculations, we can determine that the Negative Binomial distribution has a variance of 1480 which is 31x larger than the Poisson distribution.   
+
+

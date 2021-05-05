@@ -1,0 +1,195 @@
+---
+title: "Stats 762 Assignment 2"
+author: "Stephen Wang 173417367"
+date: "01/04/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Downloads/Stats 762")
+library(MASS)
+library(MuMIn)
+```
+
+## Question 1
+
+```{r}
+afghan.df = read.table("afghan.data", row.names=1, header=T)
+afghan.df$pashtun<-factor(afghan.df$pashtun)
+afghan.glm2nb <- glm.nb(formula = incidents ~ calories + pashtun + troops + offset(log(pop)), data = afghan.df, init.theta = 1.590278141, link = log)
+summary(afghan.glm2nb)
+
+HMD<-hatvalues(afghan.glm2nb)
+plot(HMD,ylab="HMD’s",type="h", cex=1.5,cex.axis=1.5, cex.lab=1.5)
+text(HMD)
+abline(h=3*3/39, lty=2)
+
+plot(afghan.glm2nb, which=1:6)
+
+
+```
+Residuals vs Fitted: at the far left, the red lowess fit goes from 1 to 0, hovers around the horizontal band around residuals=0, until  moving down to the far right where residual=-1. This may indicate non-constant error variance. Furthermore, there are three data points (Nurestan, Nimruz and Kabul) which stand out from the pattern of residuals. 
+
+Cook's Distance: confirms there are two data points, Kabul and Nimruz, with high levels of influence (cook's distance>1) which we need to take into consideration. Although Nurestan has been standing out from the rest of the diagnostic plots, the Cook's Distance suggest that it is not a data point with high levels of influence. 
+
+Residuals vs Leverage: majority of data points are well situated in the "OK" region but there are two points, Kabul and Nimruz, which are high-leverage and potentially high-leverage outliers respectively. Possible indication of a few more high leverage outliers in the bottom right of the graph from 0.15-0.22. 
+
+Normal QQ plot: there is a light tail but the majority of observations fit the QQ line. There are three data points (Nurestan, Nimruz and Kabul) that are have a severe gap at the higher end of the quantile which indicates these have more extreme values than expected from a Normal distribution. 
+
+HMD: the data point 23 (Nimruz) has the largest weight of 0.30 but we only need to be concerned of any high leverage data points with weight greater than 3(k+1)/n=3(4+1)/34=0.44 where k=4 and n=34. 
+
+Scale Location: the red line is approximately horizontal which confirms homoskedasticity. 
+
+## Question 2
+
+```{r}
+1-pchisq(36.312, 30)
+```
+
+Null hypotheses: the fitted model adequately explains the response/observed data. 
+The goodness of fit test returned a high p-value (>0.05) which supports the null hypotheses and indicates that the negative binomial model adequately explains the response. 
+
+## Question 3 
+
+```{r}
+set.seed(1)
+bootstrap=function(){
+calories.new=sample(afghan.df$calories)
+pashtun.new=sample(afghan.df$pashtun)
+troops.new=sample(afghan.df$troops)
+pop.new=sample(afghan.df$pop)
+#
+new.glm<-glm.nb(afghan.df$incidents~calories.new+pashtun.new+troops.new+offset(log(pop.new)), link='log', maxit=25)
+return(new.glm$null.deviance-new.glm$deviance)
+}
+#
+dev_diff<-replicate(n=125, bootstrap())
+
+```
+
+```{r}
+xx<-seq(.01,10,length=500)
+yc<-dchisq(xx,1)
+plot(density(dev_diff))
+hist(dev_diff,freq=FALSE)
+lines(xx,yc,col="blue",lwd=1.5)
+
+qqplot(qchisq(ppoints(125), df = 1),dev_diff,pch=20)
+
+```
+
+(b)
+
+(c) The goodness of fit test determines whether a model is well fitted in regards to a specified distribution. Therefore, non-parametric bootstrap would not be an appropriate method to generate the reference distribution because it re-samples from the original dataset with no assumptions about the distribution of the data. 
+
+
+## Question 4
+
+```{r}
+afghan2.df = read.table("afghan2.data", row.names=1, header=T)
+afghan2.df$pashtun<-factor(afghan2.df$pashtun)
+plot(afghan2.df)
+hist(afghan2.df$mortality)
+boxplot(afghan2.df$mortality)
+plot(afghan2.df$mountains)
+```
+From the pairs plot, we can observe the following:
+- Opium doesn't have any distinct relationship with mortality or any of the other regressors.
+- Mortality has a slight left skewed distribution with a noticeable cluster between values 225-275. 
+- Majority of the observations of the regressor area is situated between 0-25. 
+
+
+
+
+## Question 5
+
+```{r}
+afghan2.lm<-lm(formula=mortality~opium+pop+area+mountains+literacy+water+calories+roads+pashtun+troops, data=afghan2.df)
+summary(afghan2.lm)
+```
+## Question 6
+
+```{r}
+Xmat<-model.matrix(afghan2.lm)[,-1]
+diag(solve(cor(Xmat)))
+```
+
+As a general rule of thumb, VIF that exceeds 5 indicate a problematic amount of collinearity among regressors. Our dataset doesn't have any VIF that is greater than 5 but we may need to be concerned with "mountains" which has a VIF of 4.95.  
+
+## Question 7
+
+```{r}
+bc<-boxcox(lm(mortality~opium+pop+area+mountains+literacy+water+calories+roads+pashtun+troops, data=afghan2.df))
+bc$x[which.max(bc$y)]
+
+bc<-boxcox(lm(mortality^(1/2)~opium+pop+area+mountains+literacy+water+calories+roads+pashtun+troops, data=afghan2.df))
+bc$x[which.max(bc$y)]
+
+bc<-boxcox(lm(mortality^(2/5)~opium+pop+area+mountains+literacy+water+calories+roads+pashtun+troops, data=afghan2.df))
+bc$x[which.max(bc$y)]
+
+afghan3.lm<-lm(formula=sqrt(mortality)~opium+pop+area+mountains+literacy+water+calories+roads+pashtun+troops, data=afghan2.df)
+summary(afghan3.lm)
+```
+
+Our boxcox plot returns lambda=0.42 which suggest we transform the response variable to achieve a linear regression for our model. Although we could transform Y^(2/5) to get a lambda value closer to 1, we will transform Y^(1/2) (which returns lambda=0.83) for the simplicity of this study. 
+
+Residual standard error have decreased from 29.37 to 0.9575 which indicates a significantly better fit. 
+
+## Question 8 
+
+```{r}
+options(na.action="na.fail")
+all.fits<-dredge(afghan3.lm)
+head(all.fits)
+```
+
+The models ranked by dredge suggest that the most important factors to explain mortality are area, literacy, mountain, opium, pashtun and water. However, we need to take into consideratoin only one of the models (558) used the explanatory variable "mountain" to explain mortality. 
+
+## Question 9
+
+```{r}
+best.model<-get.models(all.fits, 1)[[1]]
+summary(best.model)
+plot(best.model)
+
+HMD<-hatvalues(best.model)
+plot(HMD,ylab="HMD’s",type="h", cex=1.5,cex.axis=1.5, cex.lab=1.5)
+text(HMD)
+abline(h=3*3/39, lty=2)
+```
+
+Residuals vs Fitted: observations are scattered roughly around 0 and no extreme residuals stand out from the rest of the data points. 
+
+Cook's Distance: there are two observed data points (Ghazni and Oruzgan) with higher influence than the rest of the observations but they only have a cook's distance of around 0.10 so there is no problem. 
+
+Residuals vs Leverage: we have a few observations that could be low leverage outliers and one observation that has higher leverage than the rest of the models. Most of the observation cluster can be found within reasonable standardized residuals and leverage levels. 
+
+Scale Location: the first observation on the plot has an influence on the red horizontal line. Omitting this data point, the rest of the observations look to be scattered roughly around the red line.
+
+Normal QQ plot: there is a light tail on both ends of the quantiles but most of the observations are situated roughly around the normal distribution line. 
+
+HMD: Observation 14 (Kabul) has a value higher than $3(k+1)/n=3(3+1)/34=0.35$ where $k=3$ and $n=34$ which indicates that it has high leverage. 
+
+
+## Question 10 
+
+```{r}
+1-pchisq(0.9263, 30)
+```
+
+The goodness of fit test returned high statistical significance (p-value=1) to suggest the model adequately explains the response variable and the diagnostic plots don't produce any extreme issues to be concerned with. Therefore, we don't need to make any more modifications to the model. 
+
+
+## Question 11
+
+Based on the chain rule derivative, the regression model estimates that a unit change in any of the regressors ($X_{i}$) will be associated with a change in Y of $2b_{i}\hat{Y}=2b_{i}(\beta_{0}+\beta_{1}X_{1}+\beta_{2}X_{2}+\beta_{3}X_{3})$.Therefore, we can provide the following findings: 
+- the intercept of the regression model slope is 17.857 and uses pushtun=0 as the baseline 
+- a unit change in area size is associated with a change in mortality of -0.066 times the current mortality,
+- a unit change in literacy is associated with a change in mortality of -0.134 times the current mortality,
+- and if the region is pushtun majority (pushtun=1), there is a change in mortality of -2.472 times the current mortality. 
+
+
+
+
